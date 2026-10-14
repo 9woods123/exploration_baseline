@@ -1,5 +1,6 @@
 #include "pci_general/pci_general.h"
 #include <chrono>
+#include <limits>
 #include <thread>
 
 namespace explorer
@@ -420,6 +421,7 @@ namespace explorer
       std::vector<geometry_msgs::Pose> &modified_path,
       ExecutionPathType path_type)
   {
+    timed_trajectory_active_ = false;
     if(mission_start_time_ < 0)
     {
       mission_start_time_ = ros::Time::now().toSec();
@@ -690,6 +692,54 @@ namespace explorer
     return true;
   }
 
+  bool PCIGeneral::executeTrajectory(
+      const trajectory_msgs::MultiDOFJointTrajectory &trajectory)
+  {
+    if (trajectory.points.empty())
+      return false;
+    for (std::size_t i = 1; i < trajectory.points.size(); ++i)
+    {
+      if (trajectory.points[i].time_from_start <=
+          trajectory.points[i - 1].time_from_start)
+      {
+        ROS_ERROR("Rejecting optimized trajectory: time_from_start is not strictly increasing.");
+        return false;
+      }
+    }
+
+    samples_array_ = trajectory;
+    timed_trajectory_start_ = trajectory.header.stamp.isZero()
+                                  ? ros::Time::now()
+                                  : trajectory.header.stamp;
+    timed_trajectory_end_ = timed_trajectory_start_ +
+                            trajectory.points.back().time_from_start;
+    timed_trajectory_active_ = true;
+    executing_path_.clear();
+    path_waypoint_ind_ = 0;
+    trajectory_vis_pub_.publish(generateTrajectoryMarkerArray(samples_array_));
+    trajectory_pub_.publish(samples_array_);
+    pci_status_ = PCIStatus::kRunning;
+    ROS_INFO("Forwarded optimized trajectory: %zu points, %.3f s remaining.",
+             trajectory.points.size(), getTrajectoryRemainingTime());
+    return true;
+  }
+
+  double PCIGeneral::getTrajectoryRemainingTime() const
+  {
+    if (!timed_trajectory_active_)
+      return std::numeric_limits<double>::infinity();
+    return std::max(0.0, (timed_trajectory_end_ - ros::Time::now()).toSec());
+  }
+
+  bool PCIGeneral::shouldReplan() const
+  {
+    const double remaining = getTrajectoryRemainingTime();
+    return timed_trajectory_active_ &&
+           pci_status_ == PCIStatus::kRunning &&
+           planner_trigger_lead_time_ > 0.0 &&
+           remaining > 0.0 && remaining <= planner_trigger_lead_time_;
+  }
+
 
   void PCIGeneral::executionTimerCallback(const ros::TimerEvent &event)
   {
@@ -698,6 +748,18 @@ namespace explorer
       force_stop_ = false;
       pci_status_ = PCIStatus::kError;
       path_waypoint_ind_ = 0;
+    }
+    if (timed_trajectory_active_)
+    {
+      if (pci_status_ == PCIStatus::kRunning &&
+          ros::Time::now() >= timed_trajectory_end_)
+      {
+        timed_trajectory_active_ = false;
+        pci_status_ = PCIStatus::kReady;
+        ROS_WARN_COND(global_verbosity >= Verbosity::PLANNER_STATUS,
+                      "PCI: optimized trajectory expired; ready to plan.");
+      }
+      return;
     }
     if (pci_status_ == PCIStatus::kRunning)
     {

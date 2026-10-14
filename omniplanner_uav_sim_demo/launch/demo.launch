@@ -3,7 +3,7 @@
   <arg name="rviz" default="true"/>
   <arg name="auto_start" default="true"/>
   <arg name="use_cuda" default="true"/>
-  <arg name="trajectory_optimization" default="false"/>
+  <arg name="trajectory_optimization" default="true"/>
   <arg name="init_x" default="0.0"/>
   <arg name="init_y" default="0.0"/>
   <arg name="init_z" default="1.5"/>
@@ -123,11 +123,27 @@
     <rosparam param="BoundedSpaceParams/Global/max_val">[29.0, 29.0, 2.7]</rosparam>
     <rosparam param="BoundedSpaceParams/Local/min_val">[-8.0, -8.0, -2.0]</rosparam>
     <rosparam param="BoundedSpaceParams/Local/max_val">[8.0, 8.0, 2.0]</rosparam>
+    <!-- The raycast backend performs exact voxel collision checks.  Keep the
+         rolling local graph small enough to return before the current timed
+         trajectory reaches its replan horizon. -->
+    <param name="PlanningParams/num_vertices_max" value="120"/>
+    <param name="PlanningParams/num_edges_max" value="1600"/>
+    <param name="PlanningParams/num_loops_cutoff" value="600"/>
+    <param name="PlanningParams/num_loops_max" value="1500"/>
     <param name="PlanningParams/traverse_length_max" value="6.0"/>
     <param name="PlanningParams/max_exploration_iterations" value="80"/>
     <!-- In-process NLopt trajectory optimization. It reads the ESDF directly
          from the map manager inside this node. -->
     <param name="trajectory_optimization/enable" value="$(arg trajectory_optimization)"/>
+    <param name="trajectory_optimization/reference_spacing" value="0.35"/>
+    <param name="trajectory_optimization/max_deviation" value="0.8"/>
+    <param name="trajectory_optimization/safety_distance" value="0.55"/>
+    <param name="trajectory_optimization/smooth_weight" value="8.0"/>
+    <param name="trajectory_optimization/reference_weight" value="2.0"/>
+    <param name="trajectory_optimization/obstacle_weight" value="30.0"/>
+    <param name="trajectory_optimization/max_solve_time" value="0.8"/>
+    <param name="trajectory_optimization/max_evaluations" value="160"/>
+    <param name="trajectory_optimization/unknown_is_obstacle" value="false"/>
     <param name="behavior_tree_path" value="$(find gbplanner)/config/uav/gzc/cave_exploration/main_tree.xml"/>
   </node>
 

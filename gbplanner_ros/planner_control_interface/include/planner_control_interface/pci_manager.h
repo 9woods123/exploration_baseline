@@ -4,6 +4,7 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <ros/ros.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <trajectory_msgs/MultiDOFJointTrajectory.h>
 
 namespace explorer {
 
@@ -57,6 +58,13 @@ class PCIManager {
       std::vector<geometry_msgs::Pose>& modified_path,
       ExecutionPathType path_type = ExecutionPathType::kLocalPath) = 0;
 
+  // Forward a trajectory already optimized and time-parameterized by the
+  // planner. Implementations must preserve header.stamp and time_from_start.
+  virtual bool executeTrajectory(
+      const trajectory_msgs::MultiDOFJointTrajectory& trajectory) = 0;
+  virtual double getTrajectoryRemainingTime() const = 0;
+  virtual bool shouldReplan() const = 0;
+
   // Set the current state of the robot based on odometry or pose.
   virtual void setState(const geometry_msgs::Pose& pose) = 0;
 
@@ -84,6 +92,7 @@ class PCIManager {
   const PCIStatus& getStatus() const { return pci_status_; }
   void setStatus(const PCIStatus& status) { pci_status_ = status; }
   const geometry_msgs::Pose& getState() { return current_pose_; }
+  const Eigen::Vector3d& getCurrentVelocity() const { return current_vel_; }
 
   void stopPCI() { force_stop_ = true; }
 

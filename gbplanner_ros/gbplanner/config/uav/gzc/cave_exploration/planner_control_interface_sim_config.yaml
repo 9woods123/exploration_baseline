@@ -3,7 +3,7 @@ trigger_mode: kManual
 robot_type: kAerial
 output_type: kTopic
 init_motion_enable: false
-planner_trigger_lead_time: 1.3 #0.3
+planner_trigger_lead_time: 3.0
 smooth_heading_enable: true
 reconnect_path: false
 set_first_wp_speed: true

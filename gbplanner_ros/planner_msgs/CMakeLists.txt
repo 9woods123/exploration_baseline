@@ -3,6 +3,7 @@ project(planner_msgs)
 find_package(catkin REQUIRED COMPONENTS
 std_msgs
 geometry_msgs
+trajectory_msgs
 message_generation
 actionlib_msgs)
 
@@ -64,9 +65,10 @@ add_action_files(
 generate_messages(
   DEPENDENCIES
   geometry_msgs
+  trajectory_msgs
   actionlib_msgs
 )
 
 catkin_package(
-  CATKIN_DEPENDS message_runtime geometry_msgs actionlib_msgs
+  CATKIN_DEPENDS message_runtime geometry_msgs trajectory_msgs actionlib_msgs
 )

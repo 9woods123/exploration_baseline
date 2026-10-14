@@ -23,6 +23,9 @@
   <depend>adaptive_obb</depend>
   <depend>pcl_ros</depend>
   <depend>behaviortree_cpp</depend>
+  <depend>nlopt</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>mav_msgs</depend>
   <depend>roslib</depend>
   <depend>grid_map_core</depend>
   <depend>grid_map_filters</depend>

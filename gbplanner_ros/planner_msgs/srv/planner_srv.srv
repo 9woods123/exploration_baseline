@@ -1,6 +1,12 @@
 # Request the planner to run and return a path
 Header header
 
+# Vehicle state sampled at header.stamp. The trajectory optimizer uses this
+# state as t0; consumers may discard trajectory samples older than wall time.
+geometry_msgs/Pose initial_pose
+geometry_msgs/Twist root_twist
+geometry_msgs/Accel root_accel
+
 # Set the bound mode of the robot to use in planner.
 # Use extension to actual size. (default)
 int32 kExtendedBound = 0
@@ -29,3 +35,7 @@ int32 planning_bound_mode
 
 # Return best path.
 geometry_msgs/Pose[] path
+
+# Time-parameterized trajectory generated from path. header.stamp is the
+# absolute t0 and every point uses a relative time_from_start.
+trajectory_msgs/MultiDOFJointTrajectory trajectory

@@ -394,7 +394,8 @@ FrameResult RaycastMapper::integrate(
     const std::vector<Eigen::Vector3d>& points_world,
     const std::vector<Eigen::Vector3d>& points_sensor,
     const Eigen::Vector3d& sensor_origin_world,
-    const std::vector<Eigen::Vector3d>& free_endpoints_world) {
+    const std::vector<Eigen::Vector3d>& free_endpoints_world,
+    bool update_esdf) {
   if (points_world.size() != points_sensor.size()) {
     throw std::invalid_argument("world and sensor point arrays have different sizes");
   }
@@ -520,7 +521,8 @@ FrameResult RaycastMapper::integrate(
     if (high_confidence) candidate.ever_free = true;
   }
 
-  if ((frame_index_ + 1) % config_.esdf_update_every_n_frames == 0) {
+  if (update_esdf &&
+      (frame_index_ + 1) % config_.esdf_update_every_n_frames == 0) {
     updateEsdf();
   }
 
@@ -536,6 +538,8 @@ FrameResult RaycastMapper::integrate(
   ++frame_index_;
   return result;
 }
+
+void RaycastMapper::updateEsdfNow() { updateEsdf(); }
 
 VoxelState RaycastMapper::voxelState(const Eigen::Vector3d& position) const {
   const auto it = cells_.find(key(position));

@@ -22,6 +22,9 @@ bool GbplannerRos::plannerServiceCallback(planner_msgs::planner_srv::Request& re
   tree_.tickOnce();
 
   gbplanner_->getPlannerSrvRes(res);
+  if (!res.path.empty() && !gbplanner_->optimizeTrajectory(req, &res)) {
+    ROS_WARN("GBPlanner returned path points but no optimized trajectory.");
+  }
   std::cout << "Sending response to PCI: " << res.status << std::endl;
 
   return true;

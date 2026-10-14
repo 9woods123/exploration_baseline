@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Convert OmniPlanner PCI trajectories to uav_simulator position commands."""
 
+import bisect
 import math
 import threading
 
@@ -56,7 +57,8 @@ class TrajectoryAdapter:
             return
         now = rospy.Time.now()
         planned_path = Path()
-        planned_path.header.stamp = now
+        planned_path.header.stamp = (
+            msg.header.stamp if msg.header.stamp != rospy.Time(0) else now)
         planned_path.header.frame_id = (
             msg.header.frame_id.lstrip("/") if msg.header.frame_id
             else self._visualization_frame)
@@ -74,7 +76,10 @@ class TrajectoryAdapter:
         with self._lock:
             self._trajectory_id += 1
             self._trajectory = msg
-            self._start = now
+            # Preserve the planner's absolute t0. Optimization time is allowed
+            # to elapse; samples older than wall time are intentionally skipped.
+            self._start = (
+                msg.header.stamp if msg.header.stamp != rospy.Time(0) else now)
             trajectory_id = self._trajectory_id
         self._planned_path_publisher.publish(planned_path)
         rospy.loginfo("Received trajectory %d (%d points)",
@@ -119,14 +124,18 @@ class TrajectoryAdapter:
         if trajectory is None:
             return
 
-        elapsed = max(0.0, (now - start).to_sec())
+        elapsed = (now - start).to_sec()
+        if elapsed < 0.0:
+            return
         points = trajectory.points
-        upper = len(points) - 1
-        for index, point in enumerate(points):
-            if point.time_from_start.to_sec() >= elapsed:
-                upper = index
-                break
-        lower = max(0, upper - 1)
+        times = [point.time_from_start.to_sec() for point in points]
+        expired = elapsed >= times[-1]
+        if expired:
+            lower = upper = len(points) - 1
+        else:
+            upper = bisect.bisect_right(times, elapsed)
+            upper = min(max(upper, 1), len(points) - 1)
+            lower = upper - 1
         t0 = points[lower].time_from_start.to_sec()
         t1 = points[upper].time_from_start.to_sec()
         ratio = 1.0 if upper == lower or t1 <= t0 else min(1.0, max(0.0, (elapsed - t0) / (t1 - t0)))
@@ -142,10 +151,14 @@ class TrajectoryAdapter:
         command.position.y = transform0.translation.y + ratio * (transform1.translation.y - transform0.translation.y)
         command.position.z = transform0.translation.z + ratio * (transform1.translation.z - transform0.translation.z)
 
-        velocity0 = self._vector(points[lower], "velocities", 0)
-        velocity1 = self._vector(points[upper], "velocities", 0)
-        acceleration0 = self._vector(points[lower], "accelerations", 0)
-        acceleration1 = self._vector(points[upper], "accelerations", 0)
+        velocity0 = ((0.0, 0.0, 0.0) if expired else
+                     self._vector(points[lower], "velocities", 0))
+        velocity1 = ((0.0, 0.0, 0.0) if expired else
+                     self._vector(points[upper], "velocities", 0))
+        acceleration0 = ((0.0, 0.0, 0.0) if expired else
+                         self._vector(points[lower], "accelerations", 0))
+        acceleration1 = ((0.0, 0.0, 0.0) if expired else
+                         self._vector(points[upper], "accelerations", 0))
         command.velocity.x = velocity0[0] + ratio * (velocity1[0] - velocity0[0])
         command.velocity.y = velocity0[1] + ratio * (velocity1[1] - velocity0[1])
         command.velocity.z = velocity0[2] + ratio * (velocity1[2] - velocity0[2])

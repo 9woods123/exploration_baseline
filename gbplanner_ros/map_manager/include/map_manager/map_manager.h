@@ -4,6 +4,20 @@
 #include "map_manager/map_manager_utils.h"
 #include <memory>
 
+class EsdfSnapshot {
+ public:
+  EsdfSnapshot();
+  double getPointDistance(const Eigen::Vector3d& point) const;
+  Eigen::Vector3d getPointGradient(const Eigen::Vector3d& point) const;
+  bool valid() const;
+
+ private:
+  struct Impl;
+  explicit EsdfSnapshot(std::shared_ptr<const Impl> impl);
+  std::shared_ptr<const Impl> impl_;
+  friend class MapManager;
+};
+
 // namespace explorer {
 
 class MapManager {
@@ -17,6 +31,7 @@ class MapManager {
   float getVoxelDistance(const Eigen::Vector3d& center);
   double getPointDistance(const Eigen::Vector3d& point);
   Eigen::Vector3d getPointGradient(const Eigen::Vector3d& point);
+  std::shared_ptr<const EsdfSnapshot> getEsdfSnapshot() const;
 
   VoxelStatus getRayStatus(const Eigen::Vector3d& view_point,
                                    const Eigen::Vector3d& voxel_to_test,

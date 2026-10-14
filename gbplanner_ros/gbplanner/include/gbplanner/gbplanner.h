@@ -6,6 +6,7 @@
 
 #include "gbplanner/gbplanner_rviz.h"
 #include "gbplanner/rrg.h"
+#include "gbplanner/trajectory_optimizer.h"
 #include "planner_common/geofence_manager.h"
 #include "planner_common/graph.h"
 #include "planner_common/graph_base.h"
@@ -60,6 +61,8 @@ class Gbplanner {
 
   bool plannerServiceCallback(planner_msgs::planner_srv::Request& req,
                               planner_msgs::planner_srv::Response& res);
+  bool optimizeTrajectory(const planner_msgs::planner_srv::Request& req,
+                          planner_msgs::planner_srv::Response* res);
 
   void setGeofenceManager(std::shared_ptr<GeofenceManager> geofence_manager);
   void setUntraversablePolygon(
@@ -155,6 +158,7 @@ class Gbplanner {
   std::vector<geometry_msgs::Pose> active_global_path_;
 
   StateVec current_state_;
+  std::unique_ptr<TrajectoryOptimizer> trajectory_optimizer_;
 
   PlannerStatus planner_status_;
 

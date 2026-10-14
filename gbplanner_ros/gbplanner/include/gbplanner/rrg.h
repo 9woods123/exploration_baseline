@@ -118,6 +118,7 @@ enum OpeningApproval {
 
 class Rrg {
  public:
+  MapManager* getMapManager() const { return map_manager_; }
   enum GraphStatus {
     OK = 0,                // Everything is OK as expected.
     ERR_KDTREE,            // Could not search nearest neigbors from kdtree.

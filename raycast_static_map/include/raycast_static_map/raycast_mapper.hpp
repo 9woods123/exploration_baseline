@@ -125,7 +125,11 @@ class RaycastMapper {
   FrameResult integrate(const std::vector<Eigen::Vector3d>& points_world,
                         const std::vector<Eigen::Vector3d>& points_sensor,
                         const Eigen::Vector3d& sensor_origin_world,
-                        const std::vector<Eigen::Vector3d>& free_endpoints_world = {});
+                        const std::vector<Eigen::Vector3d>& free_endpoints_world = {},
+                        bool update_esdf = true);
+  // Explicit entry point used by the asynchronous map backend. A copied
+  // mapper can rebuild its ESDF without holding the live occupancy-map lock.
+  void updateEsdfNow();
   VoxelState voxelState(const Eigen::Vector3d& position) const;
   double distance(const Eigen::Vector3d& position) const;
   Eigen::Vector3d distanceGradient(const Eigen::Vector3d& position) const;

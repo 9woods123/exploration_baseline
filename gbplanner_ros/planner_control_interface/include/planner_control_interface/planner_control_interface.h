@@ -163,6 +163,7 @@ class PlannerControlInterface {
   std::vector<geometry_msgs::Pose> current_path_;
 
   int planner_iteration_;
+  ros::Time next_early_replan_time_;
   geometry_msgs::Pose current_pose_;
   geometry_msgs::Pose previous_pose_;
   std::string world_frame_id_;

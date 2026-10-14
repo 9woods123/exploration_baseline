@@ -8,6 +8,7 @@ find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(adaptive_obb REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
+find_package(nlopt REQUIRED)
 
 catkin_simple(ALL_DEPS_REQUIRED)
 
@@ -24,10 +25,13 @@ cs_add_library(
   src/gbplanner_rviz.cpp
   src/gbplanner_ros.cpp
   src/gbplanner_bt_nodes.cpp
+  src/trajectory_optimizer.cpp
 )
 
+target_link_libraries(${PROJECT_NAME} ${nlopt_LIBRARIES})
+
 cs_add_executable(gbplanner_node src/gbplanner_ros_node.cpp)
-target_link_libraries(gbplanner_node ${PROJECT_NAME} ${planner_common_LIBRARIES} glog gflags)
+target_link_libraries(gbplanner_node ${PROJECT_NAME} ${planner_common_LIBRARIES} ${nlopt_LIBRARIES} glog gflags)
 
 cs_install()
 cs_export(LIBRARIES)

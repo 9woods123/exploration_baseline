@@ -554,6 +554,18 @@ void PlannerControlInterface::run() {
   bool cont = true;
   while (cont) {
     PCIManager::PCIStatus pci_status = pci_manager_->getStatus();
+    if (pci_status == PCIManager::PCIStatus::kRunning &&
+        trigger_mode_ == PlannerTriggerModeType::kAuto &&
+        pci_manager_->shouldReplan() &&
+        ros::Time::now() >= next_early_replan_time_) {
+      // planner_client_.call() is synchronous, but the trajectory adapter is a
+      // separate node and continues executing the old timed trajectory.
+      next_early_replan_time_ = ros::Time::now() + ros::Duration(0.5);
+      ROS_INFO("PCI: triggering early replan with %.3f s remaining.",
+               pci_manager_->getTrajectoryRemainingTime());
+      runPlanner(true);
+      pci_status = pci_manager_->getStatus();
+    }
     // TODO: Fix by prioritizing and sequencing exclusive cases (with bad
     // if/else and flags approach)
     if (pci_status == PCIManager::PCIStatus::kReady) {
@@ -758,7 +770,13 @@ void PlannerControlInterface::runPlanner(bool exe_path = false) {
     plan_srv.request.header.seq = planner_iteration_;
     plan_srv.request.header.frame_id = world_frame_id_;
     plan_srv.request.bound_mode = bound_mode_;
-    plan_srv.request.root_pose = getPoseToStart();
+    plan_srv.request.root_pose = current_pose_;
+    plan_srv.request.initial_pose = current_pose_;
+    const Eigen::Vector3d& current_velocity =
+        pci_manager_->getCurrentVelocity();
+    plan_srv.request.root_twist.linear.x = current_velocity.x();
+    plan_srv.request.root_twist.linear.y = current_velocity.y();
+    plan_srv.request.root_twist.linear.z = current_velocity.z();
     if(ind > 0)
     {
       plan_srv.request.root_pose.position.x = 0.0;
@@ -813,10 +831,14 @@ void PlannerControlInterface::runPlanner(bool exe_path = false) {
             v_current_ = pci_manager_->getVelocity(path_type);
             // Publish the status
             publishPlannerStatus(plan_srv.response, true);
-            pci_manager_->executePath(plan_srv.response.path, path_to_be_exe,
-                                      path_type);
-            success = true;
-            current_path_ = path_to_be_exe;
+            if (!plan_srv.response.trajectory.points.empty()) {
+              success = pci_manager_->executeTrajectory(
+                  plan_srv.response.trajectory);
+              current_path_ = plan_srv.response.path;
+            } else {
+              ROS_ERROR("Planner did not return an optimized trajectory; keeping the current command.");
+              success = false;
+            }
           } else if (ind < (kBBoxLevel - 1)) {
             publishPlannerStatus(plan_srv.response, false);
             ROS_WARN_COND(global_verbosity >= Verbosity::WARN,
@@ -962,9 +984,10 @@ geometry_msgs::Pose PlannerControlInterface::getPoseToStart() {
   ret.orientation.z = 0.0;
   ret.orientation.w = 1.0;
 
-  // Use the last waypoint as a starting pose if required to plan ahead
-  if (pci_manager_->planAhead() && (current_path_.size()))
-    ret = current_path_.back();
+  // Trajectory optimization is stamped at the odometry sampling time. Always
+  // use that sampled vehicle pose as the planning/optimization root.
+  if (pose_is_ready_)
+    ret = current_pose_;
   return ret;
 }
 

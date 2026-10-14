@@ -33,6 +33,10 @@ class PCIGeneral : public PCIManager {
   bool executePath(const std::vector<geometry_msgs::Pose> &path,
                    std::vector<geometry_msgs::Pose> &modified_path,
                    ExecutionPathType path_type = ExecutionPathType::kLocalPath);
+  bool executeTrajectory(
+      const trajectory_msgs::MultiDOFJointTrajectory &trajectory) override;
+  double getTrajectoryRemainingTime() const override;
+  bool shouldReplan() const override;
   void setState(const geometry_msgs::Pose &pose);
   void setCurrentVelocity(const geometry_msgs::Vector3 &vel);
   void setVelocity(double v);
@@ -272,6 +276,9 @@ class PCIGeneral : public PCIManager {
   std::vector<geometry_msgs::Pose> executing_path_;
 
   trajectory_msgs::MultiDOFJointTrajectory samples_array_;
+  bool timed_trajectory_active_ = false;
+  ros::Time timed_trajectory_start_;
+  ros::Time timed_trajectory_end_;
   mav_msgs::EigenTrajectoryPoint trajectory_point_;
   trajectory_msgs::MultiDOFJointTrajectoryPoint trajectory_point_msg_;
   nav_msgs::Path output_path_;

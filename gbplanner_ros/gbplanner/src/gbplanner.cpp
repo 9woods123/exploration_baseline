@@ -15,6 +15,9 @@ Gbplanner::Gbplanner(const ros::NodeHandle& nh,
     ros::shutdown();
   }
 
+  trajectory_optimizer_.reset(
+      new TrajectoryOptimizer(nh_private_, rrg_->getMapManager()));
+
   initializeAttributes();
 }
 
@@ -31,7 +34,36 @@ Gbplanner::Gbplanner(const ros::NodeHandle& nh,
     ros::shutdown();
   }
 
+
+  trajectory_optimizer_.reset(
+      new TrajectoryOptimizer(nh_private_, rrg_->getMapManager()));
+
   initializeAttributes();
+}
+
+bool Gbplanner::optimizeTrajectory(
+    const planner_msgs::planner_srv::Request& req,
+    planner_msgs::planner_srv::Response* res) {
+  ROS_INFO("Trajectory optimization request received.");
+  if (!res) return false;
+  res->trajectory.points.clear();
+  if (!trajectory_optimizer_ || !trajectory_optimizer_->enabled() ||
+      res->path.size() < 2) {
+    return false;
+  }
+  const ros::Time start_time = req.header.stamp.isZero()
+      ? ros::Time::now()
+      : req.header.stamp;
+  geometry_msgs::Pose initial_pose = req.initial_pose;
+  const auto& q = initial_pose.orientation;
+  if (q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w < 0.25) {
+    initial_pose = res->path.front();
+  }
+  ROS_INFO("Trajectory optimization starting with %zu path points.",
+           res->path.size());
+  return trajectory_optimizer_->optimize(
+      res->path, initial_pose, req.root_twist, start_time,
+      req.header.frame_id, &res->trajectory);
 }
 
 void Gbplanner::initializeAttributes() {
