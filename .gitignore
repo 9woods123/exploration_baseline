@@ -1,0 +1,22 @@
+# ROS/catkin workspace outputs (when the repository is used as workspace root).
+/build/
+/devel/
+/install/
+/logs/
+/.catkin_tools/
+
+# Python runtime files.
+__pycache__/
+*.py[cod]
+
+# Editor and operating-system state.
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Runtime logs and crash dumps.
+*.log
+core
+core.*

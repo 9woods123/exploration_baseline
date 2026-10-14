@@ -1,0 +1,147 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="rviz" default="true"/>
+  <arg name="auto_start" default="true"/>
+  <arg name="use_cuda" default="true"/>
+  <arg name="trajectory_optimization" default="false"/>
+  <arg name="init_x" default="0.0"/>
+  <arg name="init_y" default="0.0"/>
+  <arg name="init_z" default="1.5"/>
+
+  <param name="use_sim_time" value="false"/>
+
+  <!-- Deterministic point-cloud world from DifferentialRobotics/utils. -->
+  <node pkg="mockamap" type="mockamap_node" name="mockamap" output="screen">
+    <param name="seed" value="111"/>
+    <param name="update_freq" value="1.0"/>
+    <param name="resolution" value="0.2"/>
+    <param name="x_length" value="50"/>
+    <param name="y_length" value="50"/>
+    <param name="z_length" value="3"/>
+    <param name="type" value="3"/>
+    <param name="maze_type" value="1"/>
+    <!-- 3 m cells produce a 16 x 16 recursive maze while retaining enough
+         clearance for the UAV. -->
+    <param name="road_width" value="3.0"/>
+    <param name="add_wall_x" value="1"/>
+    <param name="add_wall_y" value="1"/>
+    <param name="add_ground" value="true"/>
+    <param name="start_clear_radius" value="3.0"/>
+  </node>
+
+  <!-- Lightweight SO(3) quadrotor simulation. -->
+  <node pkg="so3_quadrotor_simulator" type="quadrotor_simulator_so3"
+        name="quadrotor_simulator_so3" output="screen">
+    <param name="rate/odom" value="100.0"/>
+    <param name="simulator/init_state_x" value="$(arg init_x)"/>
+    <param name="simulator/init_state_y" value="$(arg init_y)"/>
+    <param name="simulator/init_state_z" value="$(arg init_z)"/>
+    <remap from="~odom" to="/sim/odom"/>
+    <remap from="~cmd" to="/so3_cmd"/>
+    <remap from="~imu" to="/sim/imu"/>
+  </node>
+
+  <node pkg="nodelet" type="nodelet" name="so3_control"
+        args="standalone so3_control/SO3ControlNodelet" output="screen" required="true">
+    <param name="so3_control/init_state_x" value="$(arg init_x)"/>
+    <param name="so3_control/init_state_y" value="$(arg init_y)"/>
+    <param name="so3_control/init_state_z" value="$(arg init_z)"/>
+    <param name="mass" value="0.98"/>
+    <param name="use_external_yaw" value="false"/>
+    <rosparam file="$(find so3_control)/config/gains_hummingbird.yaml"/>
+    <rosparam file="$(find so3_control)/config/corrections_hummingbird.yaml"/>
+    <remap from="~odom" to="/sim/odom"/>
+    <remap from="~position_cmd" to="/position_cmd"/>
+    <remap from="~so3_cmd" to="/so3_cmd"/>
+    <remap from="~imu" to="/sim/imu"/>
+  </node>
+
+  <node pkg="local_sensing_node" type="pcl_render_node" name="pcl_render" output="screen">
+    <param name="sensing_horizon" value="15.0"/>
+    <param name="sensing_rate" value="10.0"/>
+    <param name="estimation_rate" value="10.0"/>
+    <!-- Simplified Livox Mid-360 sampling: 500 horizontal samples x 40
+         vertical samples = 20,000 rays/frame at 10 Hz (200k rays/s). -->
+    <param name="horizontal_resolution_deg" value="0.72"/>
+    <param name="vertical_resolution_deg" value="1.5128205128205128"/>
+    <param name="vertical_fov_min_deg" value="-7.0"/>
+    <param name="vertical_fov_max_deg" value="52.0"/>
+    <param name="min_ray_length" value="0.25"/>
+    <param name="use_cuda" value="$(arg use_cuda)"/>
+    <!-- Small simulated lidar noise: Gaussian range noise grows with distance
+         (stddev = base + per_m * range), plus an optional dropout rate. -->
+    <param name="lidar_noise_enable" value="true"/>
+    <param name="lidar_noise_stddev" value="0.01"/>
+    <param name="lidar_noise_stddev_per_m" value="0.001"/>
+    <param name="lidar_noise_dropout_prob" value="0.0"/>
+    <param name="map/x_size" value="60.0"/>
+    <param name="map/y_size" value="60.0"/>
+    <param name="map/z_size" value="5.0"/>
+    <param name="map/resolution" value="0.25"/>
+    <remap from="~global_map" to="/mock_map"/>
+    <remap from="~odometry" to="/sim/odom"/>
+    <!-- Simulated 360-degree lidar returns in the moving uav_sensor frame. -->
+    <remap from="~pcl_render_node/cloud" to="/lidar/points"/>
+    <remap from="~freespace_pointcloud" to="/lidar/freespace_points"/>
+  </node>
+
+  <node pkg="omniplanner_uav_sim_demo" type="odometry_to_tf.py"
+        name="odometry_to_tf" output="screen"/>
+
+  <node pkg="omniplanner_uav_sim_demo" type="trajectory_to_position_cmd.py"
+        name="trajectory_to_position_cmd" output="screen">
+    <param name="odometry_topic" value="/sim/odom"/>
+    <param name="visualization_frame" value="world"/>
+    <!-- Keep the full executed path, adding a point after each 5 cm travelled. -->
+    <param name="executed_path_min_distance" value="0.05"/>
+  </node>
+
+  <node pkg="gbplanner" type="gbplanner_node" name="gbplanner_node" output="screen">
+    <remap from="odometry" to="/sim/odom"/>
+    <!-- Feed the GBPlanner raycast map with the simulated lidar. -->
+    <remap from="/pointcloud" to="/lidar/points"/>
+    <remap from="query_point" to="/tsdf_query_pt"/>
+    <remap from="local_navigation_goal" to="/move_base_simple/goal"/>
+    <rosparam command="load" file="$(find gbplanner)/config/uav/gzc/cave_exploration/gbplanner_config.yaml"/>
+    <!-- Sparse hash/DDA mapper running inside gbplanner_node. -->
+    <param name="raycast_map/resolution" value="0.20"/>
+    <param name="raycast_map/pointcloud_topic" value="/lidar/points"/>
+    <param name="raycast_map/freespace_topic" value="/lidar/freespace_points"/>
+    <param name="raycast_map/world_frame" value="world"/>
+    <param name="raycast_map/min_range" value="0.25"/>
+    <param name="raycast_map/max_range" value="15.0"/>
+    <param name="raycast_map/use_tsdf" value="false"/>
+    <param name="raycast_map/use_dynablox" value="true"/>
+    <param name="raycast_map/esdf_max_distance" value="5.0"/>
+    <param name="raycast_map/esdf_update_every_n_frames" value="5"/>
+    <param name="raycast_map/publish_every_n_frames" value="2"/>
+    <param name="raycast_map/input_cloud_in_world" value="false"/>
+    <param name="raycast_map/sync_tolerance" value="0.05"/>
+    <!-- Camera annotation is not used by this exploration-only demo. -->
+    <param name="PlanningParams/annotate_map_with_camera" value="false"/>
+    <rosparam param="BoundedSpaceParams/Global/min_val">[-29.0, -29.0, 0.3]</rosparam>
+    <rosparam param="BoundedSpaceParams/Global/max_val">[29.0, 29.0, 2.7]</rosparam>
+    <rosparam param="BoundedSpaceParams/Local/min_val">[-8.0, -8.0, -2.0]</rosparam>
+    <rosparam param="BoundedSpaceParams/Local/max_val">[8.0, 8.0, 2.0]</rosparam>
+    <param name="PlanningParams/traverse_length_max" value="6.0"/>
+    <param name="PlanningParams/max_exploration_iterations" value="80"/>
+    <!-- In-process NLopt trajectory optimization. It reads the ESDF directly
+         from the map manager inside this node. -->
+    <param name="trajectory_optimization/enable" value="$(arg trajectory_optimization)"/>
+    <param name="behavior_tree_path" value="$(find gbplanner)/config/uav/gzc/cave_exploration/main_tree.xml"/>
+  </node>
+
+  <node pkg="pci_general" type="pci_general_ros_node" name="pci_general_ros_node" output="screen">
+    <remap from="command/trajectory" to="/command/trajectory"/>
+    <remap from="planner_server" to="gbplanner_ros"/>
+    <remap from="planner_homing_server" to="gbplanner/homing"/>
+    <remap from="odometry" to="/sim/odom"/>
+    <rosparam command="load" file="$(find gbplanner)/config/uav/gzc/cave_exploration/planner_control_interface_sim_config.yaml"/>
+  </node>
+
+  <node if="$(arg auto_start)" pkg="omniplanner_uav_sim_demo" type="auto_start.py"
+        name="auto_start" output="screen"/>
+
+  <node if="$(arg rviz)" pkg="rviz" type="rviz" name="omniplanner_rviz" output="screen"
+        args="-d $(find omniplanner_uav_sim_demo)/config/demo.rviz"/>
+</launch>

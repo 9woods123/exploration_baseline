@@ -1,0 +1,10 @@
+---
+BasedOnStyle: Google
+AccessModifierOffset: '0'
+AlignAfterOpenBracket: Align
+AllowShortLoopsOnASingleLine: 'true'
+Standard: Auto
+ColumnLimit: 110
+BreakBeforeBraces: Stroustrup
+
+...

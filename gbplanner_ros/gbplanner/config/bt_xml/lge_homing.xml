@@ -1,0 +1,23 @@
+<!-- For active exploration and homing set lge_active and acthoming -->
+
+<root BTCPP_format="4">
+  <include path="./lge.xml" />
+  <include path="./lge_active.xml" />
+  <include path="./homing.xml" />
+  <include path="./active_homing.xml" />
+  <BehaviorTree ID="lge_homing">
+    <Sequence>
+      <Inverter>
+        <KeepRunningUntilFailure>
+          <Sequence>
+            <SubTree ID="lge"/>
+            <Inverter>
+              <GlobalExpExhaustedCheck/>
+            </Inverter>
+          </Sequence>
+        </KeepRunningUntilFailure>
+      </Inverter>
+      <SubTree ID="homing"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
